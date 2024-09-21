@@ -1,32 +1,45 @@
-@echo off
-SET HOSTSFILE=C:\Windows\System32\drivers\etc\hosts
-SET HEADER=:: Spotify Ad-ByPass Start
-SET FOOTER=:: Spotify Ad-ByPass End
+#!/bin/bash
 
-:: Check if script is running as Administrator
-net session >nul 2>&1
-if %errorlevel% neq 0 (
-    echo This script requires administrator privileges.
-    pause
-    exit
-)
+# check for the OS
+if [[ "$OSTYPE" == "linux-gnu" ]]; then
+  #Linux
+  HOSTFILE="/etc/hosts"
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+  # Mac OSX
+  HOSTFILE="/private/etc/hosts"
+else
+  echo "Sorry not supported!"
+  sleep 1
+  exit
+fi
 
-:: Find if ad-block entries already exist and remove them
-findstr /c:"%HEADER%" "%HOSTSFILE%"
-if %errorlevel% == 0 (
-    echo Removing existing entries...
-    findstr /v /c:"%HEADER%" /c:"%FOOTER%" /c:"0.0.0.0" "%HOSTSFILE%" > hosts.tmp
-    find /v /c:"%FOOTER%" hosts.tmp > "%HOSTSFILE%"
-    del hosts.tmp
-)
+HEADER="# Start Spotify Ad-Bypass"
+FOOTER="# End Spotify Ad-Bypass"
 
-:: Adding new entries
-echo %HEADER% >> %HOSTSFILE%
-for /F "tokens=*" %%A in (Blacklists.txt) do (
-    echo %%A >> %HOSTSFILE%
-)
-echo %FOOTER% >> %HOSTSFILE%
+# check for root privilage
+if [ "$EUID" -ne 0 ]
+then
+  printf "requires root privileges!\nPlease run as root."
+  sleep 1
+  exit
+fi
 
-echo Done. Spotify ads should be blocked.
-pause
+# check if there is old one so we remove it first
+line_start=$(grep -n "$HEADER" "$HOSTFILE" | grep -Eo '^[^:]+')
+if [ "$line_start" ]
+then
+  echo "[-] removing old script..."
+  line_end=$(grep -n "$FOOTER" "$HOSTFILE" | grep -Eo '^[^:]+')
+  sed -i.bak -e "${line_start},${line_end}d" "$HOSTFILE"
+  sleep 1
+  echo "[+] adding new script..."
+fi
+
+# printing blocker in hostfile
+while IFS= read -r LINE || [[ -n "$LINE" ]]
+do
+  echo $LINE >> $HOSTFILE
+done < ./Blacklists.txt
+
+echo "Done, Enjoy! Happy Hacking....!!!"
 exit
